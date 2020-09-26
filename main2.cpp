@@ -1,229 +1,147 @@
 #include <iostream>
+#include <string>
 #include <vector>
-#include <fstream>
 #include <map>
-#include <unordered_map>
-#include <queue>
-#include <algorithm>
-
-using namespace std;
-char inputConsole(string *str, string *templates);
-
-class TNode{
-private:
-    char symbol;
-    unordered_map<char, TNode*> sons;
-    TNode* parent = nullptr;
-    TNode* suffLink = nullptr;
-    string str = "";
-    int terminated;
-    vector<pair<int, int>> arrayPatterns;
-
-public:
-    explicit TNode(char c): symbol(c), terminated(0){}
-
-    void insert(const string &temp, int pos, int size) {
-        TNode* curr = this;
-        for (char symbol: temp) {
-            if (curr->sons[symbol] == nullptr) {
-                curr->sons[symbol] = new TNode(symbol);  // создаем нового ребенка
-                curr->sons[symbol]->parent = curr;
-                curr->sons[symbol]->str = curr->str + symbol;
-            }
-            curr = curr->sons[symbol];
-        }
-        cout << "Insert substring: " << temp << endl;
-        curr->terminated = 1;
-        curr->arrayPatterns.emplace_back(pos, size); // сохраняем все вставленные маски в вектор
-    }                                                // pos - позиция начала в шаблоне
-                                                   // size - длина маски
+#include <cmath>
 
 
-    //  поиск символа префикса в боре и всех вхождений шаблонов в его путь
-    vector<pair<int, int>> getChain(char c, int *maxSuffLen, int *maxEndLen) {
-        vector <pair<int, int>> templatesInside;
-        int currSuffLen = 0;
-        int currEndLen = 0;
-        static const TNode* curr = this;
+bool INTER = true;
 
-        for (; curr != nullptr ; curr = curr->suffLink) {
-            for (auto son: curr->sons) {
-                cout << "Child: " << son.first << endl;
-                if(son.first == c) {
-                    cout << "This is the child they were looking for! \n";
-                    curr = son.second;
-                    for (auto node = curr; node->suffLink != nullptr; node = node->suffLink, currSuffLen++) {
-                        if(node->terminated > 0)
-                            currEndLen++;
-                        for (auto it: node->arrayPatterns) {
-                            templatesInside.push_back(it);
-                        }
-                    }
-                    *maxSuffLen = (*maxSuffLen < currSuffLen) ? currSuffLen : *maxSuffLen;
-                    *maxEndLen = (*maxEndLen < currEndLen) ? currEndLen : *maxEndLen;
-                    cout << "Current max suffix link chain lenght: " << *maxSuffLen << endl;
-                    cout << "Current max end link chain lenght: " << *maxEndLen << endl;
-                    return templatesInside;
-                }
-            }
-        }
-        curr = this;
-        return {};
+//перегруженны оператор вывода вектора в поток
+std::ostream &operator<<(std::ostream& stream, std::vector<int>& vect){
+    stream << vect[0];
+    for (int i = 1; i < vect.size(); i++){
+        stream << "," << vect[i];
     }
-
-
-    // функция для построения суффиксных ссылок
-    void makeSuffixLinks(){
-
-        queue<TNode*> q;
-        for (auto son: sons) {     // можно внести это в цикл
-            q.push(son.second);
-        }
-        while(!q.empty()) {
-            TNode* curr = q.front();  //  берем вершину из очереди для обработки
-            cout << "Considered vertex: " << curr->symbol << " Substring: " << curr->str << endl;
-            for(pair<const char, TNode *> son: curr->sons)
-                q.push(son.second);
-            q.pop();
-
-            TNode* par = curr->parent;
-            if(par != nullptr)   // переходим по суфф. ссылке предыдущей вершины
-                par = par->suffLink;
-
-
-            while(par && par->sons.find(curr->symbol) == par->sons.end()) //проверка, есть ли нужный символ
-                par = par->suffLink;                             // в потомках рассматриваемой вершины,
-                                                                  // если нет, то переходим по суфф ссылке
-            if(par)  {curr->suffLink = par->sons[curr->symbol]; cout << " Suffix link: " << curr->suffLink->symbol << " Substring: " << curr->suffLink->str << endl;}
-                                                            //  присваиваем суффиксную ссылку, если она найдена
-            else curr->suffLink = this;      //  иначе присваиваем ссылку в себя
-        }
-
-    }
-
-    void printTrie(TNode* root){
-        TNode* curr = root;
-        cout <<"\nString:" << curr->str << endl;
-        if(curr->terminated > 0)
-            cout <<"--->Terminated!" << "\n";
-
-        if(curr->parent && curr->parent->symbol != '\0') {
-            cout <<"    Symbol:" <<curr->symbol << "\n";
-            cout <<"    Parent:" << curr->parent->symbol << endl;
-        }
-        else if(curr->parent && curr->parent->symbol == '\0')
-            cout <<"    Parent: root" << endl;
-        else
-            cout <<"    Root" << endl;
-
-        if(curr->suffLink)
-            cout << "    Suffix link: " << curr->suffLink->str << endl;
-
-        cout << "    Children:";
-        if(curr->sons.size() > 0) {
-            for (auto c:curr->sons) {
-                cout << c.first << " ";
-            }
-            cout << endl;
-        }
-        else cout << " none \n";
-        for(auto tmp:curr->sons) {
-            if (tmp.second) {
-                printTrie(tmp.second);
-            }
-        }
-    }
-};
-
-class Trie{
-private:
-    TNode node;
-    int maxSuffLen;
-    int maxEndLen;
-public:
-    Trie(): node('\0'), maxSuffLen(0), maxEndLen(0){}
-
-    void printMaxLenghts(){
-        cout << "\nMax suffix link chain lenght: " << maxSuffLen << endl;
-        cout << "Max end link chain lenght: " << maxEndLen << endl;
-    }
-
-    TNode* getRoot(){ return &node; }
-
-    vector<pair<int, int>> getChain(char c){ return node.getChain(c, &maxSuffLen, &maxEndLen); }
-
-    void makeSuffixLinks(){  node.makeSuffixLinks(); }
-
-    void insert(const string &temp, int pos, int size){ node.insert(temp, pos, size); }
-};
-
-int main() {
-    string str;
-    char joker;
-    string pattern;
-//    joker = inputConsole(&str, &pattern);
-//------------------------------------------
-    cin >> str >> pattern >> joker;
-    //-----------------------------------------
-    int freePart = 0;  // счетчик подстрок в шаблоне без джокера
-    Trie root;
-    string mask;
-    vector <size_t> maskEnter(str.size());  // массив флагов попадания подстроки в текст
-    char c;
-    cout << "\nStarted the construction of the Trie... \n";
-    // построение бора
-    for (size_t i = 0; i <= pattern.size(); i++)
-    {
-        if(i == pattern.size())  // если встречен конец строки, присваиваем с значение джокера,
-                                    // чтобы вставить оставшуюся маску в бор
-            c = joker;
-        else c = pattern[i];
-
-        if (c != joker) {       // накапливаем маску без джокеров
-            mask += c;
-        }
-        else if (!mask.empty()) { // если встречен джокер и подстрока непустая, добавляем маску в бор
-            freePart++;
-            root.insert(mask, i - mask.size(), mask.size());
-            mask.clear();
-        }
-    }
-    cout << "-------------------------- Suffix links -----------------------------\n";
-    cout << "\nThe process of creating suffix links...\n";
-    root.makeSuffixLinks();
-
-    cout << "-------------------------Built the trie -----------------------------\n";
-    root.getRoot()->printTrie(root.getRoot());
-    cout << "------------------------ Substring search -----------------------------\n";
-    for (int j = 0; j < str.size(); j++) {
-        cout << "\nSymbol: " << str[j] << "  Index: " << j << endl;
-        vector<pair<int, int>> tmp = root.getChain(str[j]);
-        for (auto pos: tmp) {                       // добавление всех вхождений масок
-            int i = j - pos.first - pos.second + 1;
-            if (i >= 0 && i + pattern.size() <= str.size())  // отмечаем вхождение, если границы шаблона
-                maskEnter[i]++;                              // входят в границы текста
-        }
-    }
-
-    root.printMaxLenghts();
-
-    cout << "Index Pattern\n";
-    for (int i = 0; i < maskEnter.size(); i++)
-        if (maskEnter[i] == freePart){
-            cout << i+1 << endl;     // печать индексов вхождения шаблона
-        }
-    return 0;
 }
 
-char inputConsole(string *str, string *templates) {
-    ifstream file;
-    char joker;
-    file.open("input.txt");
-    if (file.is_open()) {
-        file >> *str >> templates[0] >> joker;
-        file.close();
-    } else {
-        cout << "File isn't open!";
+//структура для храния строки вида: S = P # T
+struct Splice{ 
+   std::string text;                   //текст 
+   std::string sample;                //шаблон
+   char separator = '#';              //разделитель         
+   int length()
+   {
+       return text.length()+sample.length()+1;
+   }
+
+   char operator[](const int index)                 //оператор индексации
+   {
+       if (index < sample.length())                 
+            return sample[index];
+       else if (index == sample.length())
+            return separator;
+       else if (index > sample.length())
+            return text[index-sample.length()-1];
+   }
+};
+
+
+
+void printInterInfo(Splice& splice, std::vector<int> vect, int n){
+    std::cout << "\nСостояние префикс-функции для строки: " << std::endl;
+    for (int i = 0; i <= n; i++)
+        std::cout << splice[i] << " ";
+    std::cout << std::endl;
+    for (int i = 0; i <= n; i++)
+        std::cout << vect[i] << " "; 
+    std::cout << std::endl;    
+}
+
+
+// функция для построения вектора префикс функции для 
+// "склеенной" строки S = P # T
+
+void prefixFunction(Splice& splice, std::vector<int>& prefix){
+  prefix[0] = 0; //всегда 0
+  std::cout << "Начало рассчета префикс-функции" << std::endl;
+  int n = 1;
+
+  for (int i = 1; i < splice.length(); i++) 
+    {
+       // поиск какой префикс-суффикс можно расширить
+        int k = prefix[i-1]; // длина предыдущего префикса
+        while (k > 0 && splice[i] != splice[k])   // этот нельзя расширить,
+            k = prefix[k-1];                     // берем длину меньшего префикс
+
+        if (splice[i] == splice[k]) 
+            k++;                        // расширяем найденный префикс-суффикс
+        prefix[i] = k;
+
+
+        if (INTER)
+            printInterInfo(splice, prefix, n++);
+
+     }
+
+}
+
+
+//функция поиска числа и индексов вхождений шаблона
+// в заданный текст
+
+bool findEntry(std::string& text, std::string& sample, std::vector<int>& prefix, int flow_count = 1){
+    int begin, end;
+    bool find = false;
+    std::vector<int> result;
+
+    //раздел поиска по "потокам"
+    for (int j = 0; j < flow_count; j++){
+        begin = std::ceil(text.length()/flow_count)*j + sample.length() + 1;   //начальная позиция для текущего потока
+        end = std::ceil(text.length()/flow_count)*(j+1) + sample.length() + 1;  //конечная позиция для текущего потока
+        if (end > sample.length() + text.length() + 1)
+            end = sample.length() + text.length() + 1;
+
+        std::cout << "Поток " << j+1 << " (begin = " << begin << ") (end = " << end << ")" << std::endl;   
+        for (int i = begin; i < end; i++){
+            if (prefix[i] == sample.length()){          //если префикс-функция == длине шаблона
+                std::cout << "Найдено вхождение с индекса: " << i - 2*sample.length() << std::endl;//то нашли
+                find = true;
+                result.push_back(i - 2*sample.length());
+            }
+        }    
     }
-    return joker;
-} 
+
+    if (find){
+        std::cout << "Число вхождений: " << result.size() << std::endl;
+        std::cout << "Индексы: ";  std::cout << result;
+        std::cout << std::endl;
+    }
+    else{
+        std::cout << "Вхождений нет: ";
+        std::cout << "-1" << std::endl;
+    }
+
+   return find;
+
+}
+
+// в начале вводится шаблон, затем
+// текст и число "потоков"
+int main()
+{
+    Splice splice;
+    int flow_count;
+    std::cin >> splice.sample;
+    std::cin >> splice.text;
+    std::cin >> flow_count;
+    if (flow_count == 0)
+        flow_count = 1;
+
+    if (splice.sample.length() > splice.text.length()){
+        std::cout << "\nLength error" << std::endl;
+        return 0;
+    }
+    while(flow_count < 0 || flow_count > splice.text.length()){
+        std::cout << "\nFlow count error, write new: ";
+        std::cin >> flow_count;
+    }
+
+    if (splice.length() > 60)
+        INTER = false; 
+
+    std::vector<int> prefix(splice.length());
+    prefixFunction(splice, prefix);
+    findEntry(splice.text, splice.sample, prefix, flow_count);
+    return 0;
+}
